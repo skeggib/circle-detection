@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 project(Panorama)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 
 find_package(OpenCV REQUIRED)
 
