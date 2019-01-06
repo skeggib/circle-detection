@@ -8,22 +8,22 @@
 
 struct acc_t : public std::vector<std::vector<std::vector<double>>>
 {
-    int min_i; int max_i; int step_i;
-    int min_j; int max_j; int step_j;
-    int min_r; int max_r; int step_r;
+    double min_i; double max_i; double step_i;
+    double min_j; double max_j; double step_j;
+    double min_r; double max_r; double step_r;
 
     int rows, cols, rays;
 
     acc_t(
-        int min_i, int max_i, int step_i,
-        int min_j, int max_j, int step_j,
-        int min_r, int max_r, int step_r
+        double min_i, double max_i, double step_i,
+        double min_j, double max_j, double step_j,
+        double min_r, double max_r, double step_r
     ) : std::vector<std::vector<std::vector<double>>>(
-        (max_i - min_i) / step_i + 1,
+        std::ceil((max_i - min_i) / step_i),
         std::vector<std::vector<double>>(
-            (max_j - min_j) / step_j + 1,
+            std::ceil((max_j - min_j) / step_j),
             std::vector<double>(
-                (max_r - min_r) / step_r + 1,
+                std::ceil((max_r - min_r) / step_r),
                 0
             )
         )
@@ -38,9 +38,9 @@ struct acc_t : public std::vector<std::vector<std::vector<double>>>
         this->max_r  = max_r;
         this->step_r = step_r;
 
-        this->rows = (max_i - min_i) / step_i;
-        this->cols = (max_j - min_j) / step_j;
-        this->rays = (max_r - min_r) / step_r;
+        this->rows = std::ceil((max_i - min_i) / step_i);
+        this->cols = std::ceil((max_j - min_j) / step_j);
+        this->rays = std::ceil((max_r - min_r) / step_r);
     }
 
     void inc(double i, double j, double r, double value)
@@ -80,24 +80,32 @@ int main(int argc, char** argv)
     // cv::threshold(edges, edges, 0.8 * max, 255, cv::ThresholdTypes::THRESH_BINARY);
 
     // Creating acc
+    double max_r = std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2);
     acc_t acc(
-        0, edges.rows - 1, 1,
-        0, edges.cols - 1, 1,
-        5, (int)(std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2)), 1
+        0, edges.rows, edges.rows / 100.,
+        0, edges.cols, edges.cols / 100.,
+        5, max_r, (max_r - 5) / 100.
     );
+
+    std::cout << acc.rows << "x" << acc.cols << "x" << acc.rays << std::endl;
 
     // Incrementing acc
     auto start = std::chrono::high_resolution_clock::now();
+    uchar* pixel = edges.data;
     for (int x = 0; x < edges.cols; x++)
     {
-        for (int y = 0; y < edges.rows; y++)
-            for (int i = acc.min_i; i < acc.max_i; i += acc.step_i)
-                for (int j = acc.min_j; j < acc.max_j; j += acc.step_j)
+        for (int y = 0; y < edges.rows; y++, pixel++)
+        {
+            for (double i = acc.min_i; i < acc.max_i; i += acc.step_i)
+            {
+                for (double j = acc.min_j; j < acc.max_j; j += acc.step_j)
                 {
-                    int distance = (int)std::sqrt((j-x)*(j-x)+(i-y)*(i-y));
+                    double distance = std::sqrt((j-x)*(j-x)+(i-y)*(i-y));
                     if (distance >= acc.min_r)
-                        acc.inc(i, j, distance, edges.at<uchar>(x, y));
+                        acc.inc(i, j, distance, *pixel);
                 }
+            }
+        }
         std::cout << "\rSearching circles... " << (int)((x+1) * 100 / edges.cols) << "%" << std::flush;
     }
     auto finish = std::chrono::high_resolution_clock::now();
@@ -114,8 +122,8 @@ int main(int argc, char** argv)
     }
     
     // Finding local maxima
-    std::array<std::array<int, 3>, 4> maxCircles;
-    std::array<double, 4> maxValues;
+    const int maxCirclesCount = 10;
+    std::array<double, maxCirclesCount> maxValues;
     for (int i = 0; i < maxValues.size(); i++)
         maxValues[i] = 0;
     int d = 5;
@@ -134,7 +142,7 @@ int main(int argc, char** argv)
                     {
                         for (int dj = std::max(-d, -j); dj <= std::min(d, acc.rows - j - 1) && is_local_max; dj++)
                         {
-                            for (int dr = std::max(-d, -r); dr <= std::min(d, acc.max_r-r-1) && is_local_max; dr++)
+                            for (int dr = std::max(-d, -r); dr <= std::min(d, acc.rays - r - 1) && is_local_max; dr++)
                             {
                                 double v = acc[i+di][j+dj][r+dr];
                                 if (value < v)
@@ -156,6 +164,7 @@ int main(int argc, char** argv)
     std::cout << " " << (int)(elapsed.count() * 1000) << " ms" << std::endl;
     
     // Searching n greater values
+    std::array<std::array<double, 3>, maxCirclesCount> maxCircles;
     for (int i = 0; i < acc.rows; i++)
     {
         for (int j = 0; j < acc.cols; j++)
@@ -185,13 +194,15 @@ int main(int argc, char** argv)
         }
     }
     
-    for(int i = 0; i < maxCircles.size(); i++)
-        std::cout << maxCircles[i][0] << "," << maxCircles[i][1] << " " << maxCircles[i][2] << " " << maxValues[i] << std::endl;
-    
     cv::Mat result;
     cv::cvtColor(image, result, cv::COLOR_GRAY2RGB);
-    for (auto maxIndex : maxCircles)
-        cv::circle(result, cv::Point(maxIndex[0], maxIndex[1]), maxIndex[2], cv::Scalar(0, 0, 255));
+    for(int i = 0; i < maxCircles.size(); i++)
+    {
+        if (i > 0 && maxValues[i-1] <= maxValues[i])
+            break;
+        std::cout << maxCircles[i][0] << "," << maxCircles[i][1] << " " << maxCircles[i][2] << " " << maxValues[i] << std::endl;
+        cv::circle(result, cv::Point(maxCircles[i][0], maxCircles[i][1]), maxCircles[i][2], cv::Scalar(0, 0, 255));
+    }
 
     cv::imshow("result", result);
     cv::waitKey();
