@@ -8,48 +8,45 @@
 
 struct acc_t : public std::vector<std::vector<std::vector<double>>>
 {
-    double min_i; double max_i; double step_i;
-    double min_j; double max_j; double step_j;
-    double min_r; double max_r; double step_r;
+    double min_i;
+    double max_i;
+    double step_i;
+    double min_j;
+    double max_j;
+    double step_j;
+    double min_r;
+    double max_r;
+    double step_r;
 
     int rows, cols, rays;
 
     acc_t(
         double min_i, double max_i, double step_i,
         double min_j, double max_j, double step_j,
-        double min_r, double max_r, double step_r
-    ) : std::vector<std::vector<std::vector<double>>>(
-        std::ceil((max_i - min_i) / step_i),
-        std::vector<std::vector<double>>(
-            std::ceil((max_j - min_j) / step_j),
-            std::vector<double>(
-                std::ceil((max_r - min_r) / step_r),
-                0
-            )
-        )
-    ) {
-        this->min_i  = min_i;
-        this->max_i  = max_i;
+        double min_r, double max_r, double step_r) : std::vector<std::vector<std::vector<double>>>(std::ceil((max_i - min_i) / step_i),
+                                                                                                   std::vector<std::vector<double>>(
+                                                                                                       std::ceil((max_j - min_j) / step_j),
+                                                                                                       std::vector<double>(
+                                                                                                           std::ceil((max_r - min_r) / step_r),
+                                                                                                           0)))
+    {
+        this->min_i = min_i;
+        this->max_i = max_i;
         this->step_i = step_i;
-        this->min_j  = min_j;
-        this->max_j  = max_j;
+        this->min_j = min_j;
+        this->max_j = max_j;
         this->step_j = step_j;
-        this->min_r  = min_r;
-        this->max_r  = max_r;
+        this->min_r = min_r;
+        this->max_r = max_r;
         this->step_r = step_r;
 
         this->rows = std::ceil((max_i - min_i) / step_i);
         this->cols = std::ceil((max_j - min_j) / step_j);
         this->rays = std::ceil((max_r - min_r) / step_r);
     }
-
-    void inc(double i, double j, double r, double value)
-    {
-        this->operator[]((i - min_i) / step_i)[(j - min_j) / step_j][(r - min_r) / step_r] += value;
-    }
 };
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     arguments_t args(argc, argv);
     if (args.parametersSize() < 2)
@@ -65,8 +62,8 @@ int main(int argc, char** argv)
 
     // Gaussian filter
     cv::Mat blured;
-    cv::GaussianBlur(image, blured, cv::Size(3, 3), 1);
-    
+    cv::GaussianBlur(image, blured, cv::Size(9, 9), 1, 1);
+
     // Sobel filter
     cv::Mat sobelX, absSobelX;
     cv::Sobel(blured, sobelX, CV_16S, 1, 0);
@@ -76,6 +73,9 @@ int main(int argc, char** argv)
     cv::convertScaleAbs(sobelY, absSobelY);
     cv::Mat edges;
     cv::addWeighted(absSobelX, 0.5, absSobelY, 0.5, 0, edges);
+
+    // cv::imshow("test", edges);
+    // cv::waitKey();
 
     // Threshold filter
     // double min, max;
@@ -87,29 +87,37 @@ int main(int argc, char** argv)
     acc_t acc(
         0, edges.rows, edges.rows / 100.,
         0, edges.cols, edges.cols / 100.,
-        5, max_r, (max_r - 5) / 100.
-    );
+        5, max_r, (max_r - 5) / 100.);
 
     std::cout << acc.rows << "x" << acc.cols << "x" << acc.rays << std::endl;
 
+    std::vector<int> sqrt_table(std::pow(std::max(edges.rows, edges.cols) * std::sqrt(2), 2));
+    for (int i = 0; i < sqrt_table.size(); i++)
+        sqrt_table[i] = (int)((std::sqrt(i) - acc.min_r) / acc.step_r);
+
     // Incrementing acc
     auto start = std::chrono::high_resolution_clock::now();
-    uchar* pixel = edges.data;
-    for (int x = 0; x < edges.cols; x++)
+    double min_distance = acc.min_r * acc.min_r;
+    auto it_i = acc.begin();
+    for (double i = acc.min_i; i < acc.max_i && it_i != acc.end(); i += acc.step_i, it_i++)
     {
-        for (int y = 0; y < edges.rows; y++, pixel++)
+        auto it_j = (*it_i).begin();
+        for (double j = acc.min_j; j < acc.max_j && it_j != (*it_i).end(); j += acc.step_j, it_j++)
         {
-            for (double i = acc.min_i; i < acc.max_i; i += acc.step_i)
+            uchar *pixel = edges.data;
+            for (int x = 0; x < edges.cols; x++)
             {
-                for (double j = acc.min_j; j < acc.max_j; j += acc.step_j)
+                double j_part = (j - x) * (j - x);
+                for (int y = 0; y < edges.rows; y++, pixel++)
                 {
-                    double distance = std::sqrt((j-x)*(j-x)+(i-y)*(i-y));
-                    if (distance >= acc.min_r)
-                        acc.inc(i, j, distance, (double)*pixel / 255.);
+                    double i_part = (i - y) * (i - y);
+                    double sqr_distance = j_part + i_part;
+                    if (sqr_distance >= min_distance)
+                        (*it_j)[sqrt_table[sqr_distance]] += (double)*pixel / 255.;
                 }
             }
         }
-        std::cout << "\rSearching circles... " << (int)((x+1) * 100 / edges.cols) << "%" << std::flush;
+        std::cout << "\rSearching circles... " << (int)(i * 100 / (acc.max_i - acc.min_i)) << "%" << std::flush;
     }
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
@@ -123,7 +131,7 @@ int main(int argc, char** argv)
             for (int j = 0; j < acc.cols; j++)
                 acc[i][j][r] /= circumference;
     }
-    
+
     // Finding local maxima
     int d = 5;
     start = std::chrono::high_resolution_clock::now();
@@ -143,11 +151,11 @@ int main(int argc, char** argv)
                         {
                             for (int dr = std::max(-d, -r); dr <= std::min(d, acc.rays - r - 1) && is_local_max; dr++)
                             {
-                                double v = acc[i+di][j+dj][r+dr];
+                                double v = acc[i + di][j + dj][r + dr];
                                 if (value < v)
                                     is_local_max = false;
                                 else if (v < value)
-                                    acc[i+di][j+dj][r+dr] = 0;
+                                    acc[i + di][j + dj][r + dr] = 0;
                             }
                         }
                     }
@@ -156,12 +164,12 @@ int main(int argc, char** argv)
                 }
             }
         }
-        std::cout << "\rSearching local maxima... " << (int)((i+1) * 100 / acc.rows) << "%" << std::flush;
+        std::cout << "\rSearching local maxima... " << (int)((i + 1) * 100 / acc.rows) << "%" << std::flush;
     }
     finish = std::chrono::high_resolution_clock::now();
     elapsed = finish - start;
     std::cout << " " << (int)(elapsed.count() * 1000) << " ms" << std::endl;
-    
+
     // Searching n greater values
     std::vector<double> maxima(circles_number);
     for (int i = 0; i < maxima.size(); i++)
@@ -179,26 +187,26 @@ int main(int argc, char** argv)
                     {
                         for (int m = maxima.size() - 1; m > l; m--)
                         {
-                            maxima[m] = maxima[m-1];
-                            circles[m] = circles[m-1];
+                            maxima[m] = maxima[m - 1];
+                            circles[m] = circles[m - 1];
                         }
                         maxima[l] = acc[i][j][r];
-                        circles[l] = 
-                        {
-                            i * acc.step_i + acc.min_i,
-                            j * acc.step_j + acc.min_j,
-                            r * acc.step_r + acc.min_r,
-                        };
+                        circles[l] =
+                            {
+                                i * acc.step_i + acc.min_i,
+                                j * acc.step_j + acc.min_j,
+                                r * acc.step_r + acc.min_r,
+                            };
                         break;
                     }
                 }
             }
         }
     }
-    
+
     cv::Mat result;
     cv::cvtColor(image, result, cv::COLOR_GRAY2RGB);
-    for(int i = 0; i < circles.size(); i++)
+    for (int i = 0; i < circles.size(); i++)
     {
         std::cout << circles[i][0] << "," << circles[i][1] << " " << circles[i][2] << " " << maxima[i] << std::endl;
         cv::circle(result, cv::Point(circles[i][0], circles[i][1]), circles[i][2], cv::Scalar(0, 0, 255));

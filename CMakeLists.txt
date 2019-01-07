@@ -12,3 +12,9 @@ add_executable(circle_detection
     src/arguments.cpp
 )
 target_link_libraries (circle_detection ${OpenCV_LIBS})
+
+add_executable(opencv_circle_detection
+    opencv_circle_detection.cpp
+    src/arguments.cpp
+)
+target_link_libraries (opencv_circle_detection ${OpenCV_LIBS})
