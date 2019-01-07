@@ -52,11 +52,14 @@ struct acc_t : public std::vector<std::vector<std::vector<double>>>
 int main(int argc, char** argv)
 {
     arguments_t args(argc, argv);
-    if (args.parametersSize() < 1)
+    if (args.parametersSize() < 2)
     {
-        std::cout << "usage: " << argv[0] << " <image>" << std::endl;
+        std::cout << "usage: " << argv[0] << " <image> <circles_number>" << std::endl;
         return 0;
     }
+
+    std::string imagePath(args[0]);
+    int circles_number = std::stoi(args[1]);
 
     auto image = cv::imread(args[0], cv::IMREAD_GRAYSCALE);
 
@@ -102,7 +105,7 @@ int main(int argc, char** argv)
                 {
                     double distance = std::sqrt((j-x)*(j-x)+(i-y)*(i-y));
                     if (distance >= acc.min_r)
-                        acc.inc(i, j, distance, *pixel);
+                        acc.inc(i, j, distance, (double)*pixel / 255.);
                 }
             }
         }
@@ -122,10 +125,6 @@ int main(int argc, char** argv)
     }
     
     // Finding local maxima
-    const int maxCirclesCount = 10;
-    std::array<double, maxCirclesCount> maxValues;
-    for (int i = 0; i < maxValues.size(); i++)
-        maxValues[i] = 0;
     int d = 5;
     start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < acc.rows; i++)
@@ -164,24 +163,27 @@ int main(int argc, char** argv)
     std::cout << " " << (int)(elapsed.count() * 1000) << " ms" << std::endl;
     
     // Searching n greater values
-    std::array<std::array<double, 3>, maxCirclesCount> maxCircles;
+    std::vector<double> maxima(circles_number);
+    for (int i = 0; i < maxima.size(); i++)
+        maxima[i] = 0;
+    std::vector<std::array<double, 3>> circles(circles_number);
     for (int i = 0; i < acc.rows; i++)
     {
         for (int j = 0; j < acc.cols; j++)
         {
             for (int r = 0; r < acc.rays; r++)
             {
-                for (int l = 0; l < maxValues.size(); l++)
+                for (int l = 0; l < maxima.size(); l++)
                 {
-                    if (maxValues[l] < acc[i][j][r])
+                    if (maxima[l] < acc[i][j][r])
                     {
-                        for (int m = l; m < maxValues.size() - 1; m++)
+                        for (int m = maxima.size() - 1; m > l; m--)
                         {
-                            maxValues[m+1] = maxValues[m];
-                            maxCircles[m+1] = maxCircles[m];
+                            maxima[m] = maxima[m-1];
+                            circles[m] = circles[m-1];
                         }
-                        maxValues[l] = acc[i][j][r];
-                        maxCircles[l] = 
+                        maxima[l] = acc[i][j][r];
+                        circles[l] = 
                         {
                             i * acc.step_i + acc.min_i,
                             j * acc.step_j + acc.min_j,
@@ -196,12 +198,10 @@ int main(int argc, char** argv)
     
     cv::Mat result;
     cv::cvtColor(image, result, cv::COLOR_GRAY2RGB);
-    for(int i = 0; i < maxCircles.size(); i++)
+    for(int i = 0; i < circles.size(); i++)
     {
-        if (i > 0 && maxValues[i-1] <= maxValues[i])
-            break;
-        std::cout << maxCircles[i][0] << "," << maxCircles[i][1] << " " << maxCircles[i][2] << " " << maxValues[i] << std::endl;
-        cv::circle(result, cv::Point(maxCircles[i][0], maxCircles[i][1]), maxCircles[i][2], cv::Scalar(0, 0, 255));
+        std::cout << circles[i][0] << "," << circles[i][1] << " " << circles[i][2] << " " << maxima[i] << std::endl;
+        cv::circle(result, cv::Point(circles[i][0], circles[i][1]), circles[i][2], cv::Scalar(0, 0, 255));
     }
 
     cv::imshow("result", result);
