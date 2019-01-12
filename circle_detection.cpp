@@ -8,27 +8,23 @@
 
 struct acc_t : public std::vector<std::vector<std::vector<double>>>
 {
-    double min_i;
-    double max_i;
-    double step_i;
-    double min_j;
-    double max_j;
-    double step_j;
-    double min_r;
-    double max_r;
-    double step_r;
+    double min_i; double max_i; double step_i;
+    double min_j; double max_j; double step_j;
+    double min_r; double max_r; double step_r;
 
     int rows, cols, rays;
 
     acc_t(
         double min_i, double max_i, double step_i,
         double min_j, double max_j, double step_j,
-        double min_r, double max_r, double step_r) : std::vector<std::vector<std::vector<double>>>(std::ceil((max_i - min_i) / step_i),
-                                                                                                   std::vector<std::vector<double>>(
-                                                                                                       std::ceil((max_j - min_j) / step_j),
-                                                                                                       std::vector<double>(
-                                                                                                           std::ceil((max_r - min_r) / step_r),
-                                                                                                           0)))
+        double min_r, double max_r, double step_r)
+        : std::vector<std::vector<std::vector<double>>>(
+            std::ceil((max_i - min_i) / step_i),
+            std::vector<std::vector<double>>(
+                std::ceil((max_j - min_j) / step_j),
+                std::vector<double>(
+                    std::ceil((max_r - min_r) / step_r),
+                    0)))
     {
         this->min_i = min_i;
         this->max_i = max_i;
@@ -49,20 +45,26 @@ struct acc_t : public std::vector<std::vector<std::vector<double>>>
 int main(int argc, char **argv)
 {
     arguments_t args(argc, argv);
-    if (args.parametersSize() < 2)
+    if (args.parametersSize() < 3)
     {
-        std::cout << "usage: " << argv[0] << " <image> <circles_number>" << std::endl;
-        return 0;
+        std::cout << "usage: " << argv[0] << " <input> <output> <circles_number>" << std::endl;
+        return -1;
     }
 
-    std::string imagePath(args[0]);
-    int circles_number = std::stoi(args[1]);
+    std::string input_path(args[0]);
+    std::string output_path(args[1]);
+    int circles_number = std::stoi(args[2]);
 
-    auto image = cv::imread(args[0], cv::IMREAD_GRAYSCALE);
+    auto image = cv::imread(input_path, cv::IMREAD_GRAYSCALE);
+    if (!image.data)
+    {
+        std::cout << "Could not open " << input_path << std::endl;
+        return -1;
+    }
 
     // Gaussian filter
     cv::Mat blured;
-    cv::GaussianBlur(image, blured, cv::Size(9, 9), 1, 1);
+    cv::GaussianBlur(image, blured, cv::Size(9, 9), 2, 2);
 
     // Sobel filter
     cv::Mat sobelX, absSobelX;
@@ -74,20 +76,11 @@ int main(int argc, char **argv)
     cv::Mat edges;
     cv::addWeighted(absSobelX, 0.5, absSobelY, 0.5, 0, edges);
 
-    // cv::imshow("test", edges);
-    // cv::waitKey();
-
-    // Threshold filter
-    // double min, max;
-    // cv::minMaxLoc(edges, &min, &max);
-    // cv::threshold(edges, edges, 0.8 * max, 255, cv::ThresholdTypes::THRESH_BINARY);
-
     // Creating acc
-    double max_r = std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2);
     acc_t acc(
-        0, edges.rows, edges.rows / 100.,
-        0, edges.cols, edges.cols / 100.,
-        5, max_r, (max_r - 5) / 100.);
+        0, edges.rows, 1.,
+        0, edges.cols, 1.,
+        5, std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2), 1);
 
     std::cout << acc.rows << "x" << acc.cols << "x" << acc.rays << std::endl;
 
@@ -209,11 +202,17 @@ int main(int argc, char **argv)
     for (int i = 0; i < circles.size(); i++)
     {
         std::cout << circles[i][0] << "," << circles[i][1] << " " << circles[i][2] << " " << maxima[i] << std::endl;
-        cv::circle(result, cv::Point(circles[i][0], circles[i][1]), circles[i][2], cv::Scalar(0, 0, 255));
+        cv::circle(
+            result,
+            cv::Point(std::round(circles[i][0]), std::round(circles[i][1])),
+            std::round(circles[i][2]),
+            cv::Scalar(0, 0, 255));
     }
 
-    cv::imshow("result", result);
-    cv::waitKey();
+    cv::imwrite(output_path, result);
+
+    // cv::imshow("result", result);
+    // cv::waitKey();
 
     return 0;
 }
