@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 
     // Gaussian filter
     cv::Mat blured;
-    cv::GaussianBlur(image, blured, cv::Size(9, 9), 2, 2);
+    cv::GaussianBlur(image, blured, cv::Size(3, 3), 1, 1);
 
     // Sobel filter
     cv::Mat sobelX, absSobelX;
@@ -76,11 +76,15 @@ int main(int argc, char **argv)
     cv::Mat edges;
     cv::addWeighted(absSobelX, 0.5, absSobelY, 0.5, 0, edges);
 
+    // double min, max;
+    // cv::minMaxLoc(edges, &min, &max);
+    // cv::threshold(edges, edges, max * 0.5, 255, cv::THRESH_BINARY);
+
     // Creating acc
     acc_t acc(
-        0, edges.rows, 1.,
-        0, edges.cols, 1.,
-        5, std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2), 1);
+        0, edges.rows, 1,
+        0, edges.cols, 1,
+        6, std::max(edges.rows - 1, edges.cols - 1) * std::sqrt(2), 1);
 
     std::cout << acc.rows << "x" << acc.cols << "x" << acc.rays << std::endl;
 
@@ -138,9 +142,9 @@ int main(int argc, char **argv)
                 if (value > 0)
                 {
                     bool is_local_max = true;
-                    for (int di = std::max(-d, -i); di <= std::min(d, acc.cols - i - 1) && is_local_max; di++)
+                    for (int di = std::max(-d, -i); di <= std::min(d, acc.rows - i - 1) && is_local_max; di++)
                     {
-                        for (int dj = std::max(-d, -j); dj <= std::min(d, acc.rows - j - 1) && is_local_max; dj++)
+                        for (int dj = std::max(-d, -j); dj <= std::min(d, acc.cols - j - 1) && is_local_max; dj++)
                         {
                             for (int dr = std::max(-d, -r); dr <= std::min(d, acc.rays - r - 1) && is_local_max; dr++)
                             {
@@ -211,8 +215,8 @@ int main(int argc, char **argv)
 
     cv::imwrite(output_path, result);
 
-    // cv::imshow("result", result);
-    // cv::waitKey();
+    cv::imshow("result", result);
+    cv::waitKey();
 
     return 0;
 }
