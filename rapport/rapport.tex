@@ -38,19 +38,19 @@ Pour éviter de privilégier les cercles plus grands, je normalise les valeurs d
 
 Les figures \ref{detection_four}, \ref{detection_fourn} et \ref{detection_coins} sont quelques exemples de détection de cercles.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering\includegraphics{images/detection_four.png}
 	\caption{Exemple de détection de cercle.}
 	\label{detection_four}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering\includegraphics{images/detection_fourn.png}
 	\caption{Exemple de détection de cercle.}
 	\label{detection_fourn}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering\includegraphics{images/detection_coins.png}
 	\caption{Exemple de détection de cercle.}
 	\label{detection_coins}
@@ -58,6 +58,35 @@ Les figures \ref{detection_four}, \ref{detection_fourn} et \ref{detection_coins}
 
 \section{Exercice 3}
 
-\paragraph{Question 1} Le temps de calcul nécessaire pour l'image four.png est 2150 ms. La complexité en $O(n^4)$ peut être expliquée par le fait que nous parcourons tous les pixels de l'image ($O(n^2)$) pour chaque ligne et chaque colonne de l'accumulateur. Le temsp estimé pour une image de 600 px est $2150 \text{ ms } \times 100^{-4} \times 600^4 = 2786400 \text{ ms } = 46.44 \text{ minutes }$.
+\paragraph{Question 1} Le temps de calcul nécessaire pour l'image four.png est 2150 ms. La complexité en $O(n^4)$ peut être expliquée par le fait que nous parcourons tous les pixels de l'image ($O(n^2)$) pour chaque ligne et chaque colonne de l'accumulateur. Le temps estimé pour une image de 600 px est $2150 \text{ ms } \times 100^{-4} \times 600^4 = 2786400 \text{ ms } = 46.44 \text{ minutes }$.
+
+\paragraph{Question 2 - Sans du gradient} La droite passant par le point $P$ dans le sens du gradient d'angle $\theta$ peut être représentée comme suit :
+\\
+
+$y = \tan(\theta) x + b$
+
+$b = P_y - \tan(\theta) P_x$
+\\
+
+on peut ensuite définir deux cônes avec deux autres droites :
+\\
+
+$y = d_1(x) = \tan(\theta + \delta \theta) x + b_1$
+
+$b_1 = P_y - \tan(\theta + \delta \theta) P_x$
+\\
+
+$y = d_2(x) = \tan(\theta - \delta \theta) x + b_2$
+
+$b_2 = P_y - \tan(\theta - \delta \theta) P_x$
+\\
+
+et nous allons parcourir uniquement les pixels dans le cône. Un pixel $P$ est dans un des deux cônes si :
+\\
+
+$d_1(P_x) \le P_y \le d_2(P_x)$ ou $d_1(P_x) \ge P_y \ge d_2(P_x)$
+\\
+
+Nous allons donc parcourir, pour chaque ligne $x$, les pixels entre $d_1(x)$ et $d_2(x)$. Cependant, je n'ai pas eu le temps d'implémenter cette amélioration.
 
 \end{document}
